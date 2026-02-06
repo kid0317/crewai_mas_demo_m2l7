@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_provider: str = "aliyun"
     llm_model: str = "qwen-plus"
+    llm_image_model: str = "qwen3-vl-plus"
     llm_base_url: str | None = None
     # 阿里云通义千问：cn / intl / finance
     llm_region: Literal["cn", "intl", "finance"] = "cn"

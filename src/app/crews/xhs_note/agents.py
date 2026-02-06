@@ -16,7 +16,7 @@ import yaml
 from crewai import Agent
 
 from app.crews.llm import get_llm
-from app.crews.tools import IntermediateTool
+from app.crews.tools import IntermediateTool, AddImageToolLocal
 from app.schemas.xhs_note import (
     XhsContentStrategyBrief,
     XhsCopywritingOutput,
@@ -53,7 +53,8 @@ _cfg_visual = _agent_cfg("xhs_visual_analyst")
 xhs_visual_analyst = Agent(
     config=_cfg_visual,
     multimodal=True,
-    llm=get_llm(model="qwen3-vl-plus"),
+    llm=get_llm(image_model="qwen3-vl-plus",model="qwen3-max-2026-01-23"),
+    tools=[AddImageToolLocal()],
 )
 
 
@@ -62,7 +63,8 @@ _cfg_editor = _agent_cfg("xhs_image_editor")
 xhs_image_editor = Agent(
     config=_cfg_editor,
     multimodal=True,
-    llm=get_llm(model="qwen3-vl-plus"),
+    llm=get_llm(image_model="qwen3-vl-plus",model="qwen3-max-2026-01-23"),
+    tools=[AddImageToolLocal()],
 )
 
 _cfg_growth = _agent_cfg("xhs_growth_strategist")

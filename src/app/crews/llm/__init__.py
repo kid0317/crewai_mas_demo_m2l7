@@ -9,6 +9,7 @@ __all__ = ["AliyunLLM", "get_llm"]
 def get_llm(
     provider: str | None = None,
     model: str | None = None,
+    image_model: str | None = None, # 专门的多模态模型；优先使用显式入参，其次尝试从配置读取，最后使用默认值。
     **kwargs: object,
 ) -> AliyunLLM:
     """
@@ -17,6 +18,7 @@ def get_llm(
     Args:
         provider: 不传则用 APP_LLM_PROVIDER
         model: 不传则用 APP_LLM_MODEL
+        image_model: 专门的多模态模型；优先使用显式入参，其次尝试从配置读取，最后使用默认值。  qwen3-vl-plus
         **kwargs: 透传给 AliyunLLM（如 api_key、region、temperature、timeout、retry_count）
 
     Returns:
@@ -32,5 +34,6 @@ def get_llm(
             temperature=kwargs.get("temperature"),
             timeout=kwargs.get("timeout"),
             retry_count=kwargs.get("retry_count"),
+            image_model=image_model or settings.llm_image_model,
         )
     raise ValueError(f"不支持的 LLM provider: {provider}，当前支持: aliyun")

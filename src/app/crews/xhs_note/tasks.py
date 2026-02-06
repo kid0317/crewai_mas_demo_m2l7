@@ -90,7 +90,7 @@ def build_visual_analysis_task(image: XhsImageInput, idea_text: str) -> Task:
         expected_output=expected_output,
         agent=xhs_visual_analyst,
         output_pydantic=XhsImageVisualAnalysis,
-        async_execution=True,  # 异步执行，避免阻塞主线程
+        async_execution=False,  # 异步执行，避免阻塞主线程
     )
 
 def build_visual_analysis_summary_task(context: List[Task]) -> Task:
@@ -138,7 +138,7 @@ def build_image_edit_task(
         expected_output=expected_output,
         agent=xhs_image_editor,
         output_pydantic=XhsImageEditPlan,
-        async_execution=True,  # 异步执行，避免阻塞主线程
+        async_execution=False,  # 异步执行，避免阻塞主线程
     )
 
 def build_image_edit_plan_summary_task(context: List[Task]) -> Task:

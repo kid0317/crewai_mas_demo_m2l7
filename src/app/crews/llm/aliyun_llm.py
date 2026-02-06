@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from typing import Any, Tuple
 
 import requests
 from crewai import BaseLLM
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class AliyunLLM(BaseLLM):
-    """阿里云通义千问 LLM，兼容 CrewAI BaseLLM 接口。"""
+    """阿里云通义千问 LLM，兼容 CrewAI BaseLLM 接口，支持多模态消息。"""
 
     ENDPOINTS = {
         "cn": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
@@ -32,6 +32,7 @@ class AliyunLLM(BaseLLM):
         temperature: float | None = None,
         timeout: int | None = None,
         retry_count: int | None = None,
+        image_model: str | None = None,
     ) -> None:
         """
         初始化阿里云 LLM。未传参数时从 APP_* 配置读取。
@@ -63,6 +64,83 @@ class AliyunLLM(BaseLLM):
         self.region = region
         self.timeout = timeout if timeout is not None else settings.llm_timeout
         self.retry_count = retry_count if retry_count is not None else settings.llm_retry_count
+        # 专门的多模态模型；优先使用显式入参，其次尝试从配置读取，最后使用默认值。
+        self.image_model = (
+            image_model
+            or getattr(settings, "llm_image_model", None)
+            or "qwen3-vl-plus"
+        )
+
+    def _normalize_multimodal_tool_result(
+        self, messages: list[dict[str, Any]]
+    ) -> Tuple[list[dict[str, Any]], bool]:
+        """
+        将 CrewAI 对 AddImageTool/AddImageToolLocal 的字符串结果还原为多模态 user 消息。
+
+        参考原项目实现：
+        - 当内容中包含 AddImageToolLocal 输出的 data URL 时，转为通义千问兼容的
+          `[{type: text}, {type: image_url, image_url: {url: ...}}]` 结构；
+        - 当内容中包含远程 http 图片 Observation 时，转为 {type: text} + {type: image} 结构。
+
+        Returns:
+            (normalized_messages, used_multimodal_model)
+        """
+        out: list[dict[str, Any]] = []
+        flag = False
+        for msg in messages:
+            content = msg.get("content")
+            # 仅处理来自工具调用后的 assistant 文本消息
+            if msg.get("role") != "assistant" or content is None or not isinstance(content, str):
+                out.append(msg)
+                continue
+
+            s = content
+            # 情形 1：AddImageToolLocal 返回 base64 data URL
+            if "add_image_to_content_local" in s and ("data:image/" in s and ";base64," in s):
+                logger.info("normalized_multimodal_tool_result base64_from_tool")
+                idx = s.find("data:image/")
+                data_url = s[idx:]
+                logger.info(
+                    "normalized_multimodal_tool_result base64_len=%s",
+                    len(data_url),
+                )
+                text = s[:idx] + "图片内容已加载"
+                user_msg = {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": text},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+                logger.debug(
+                    "normalized_multimodal_tool_result user_msg=%s",
+                    user_msg,
+                )
+                out.append(user_msg)
+                flag = True
+                continue
+
+            # 情形 2：AddImageToolLocal 观测到远程 http 图片链接
+            if "add_image_to_content_local" in s and "Observation: http" in s:
+                idx = s.find("Observation: http")
+                data_url = "http" + s[idx:]
+                text = s[:idx] + "图片内容已加载"
+                user_msg = {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": text},
+                        {"type": "image", "image": data_url},
+                    ],
+                }
+                logger.info("normalized_multimodal_tool_result http_image_from_tool")
+                out.append(user_msg)
+                flag = True
+                continue
+
+            out.append(msg)
+
+        logger.info("normalized_multimodal_tool_result flag=%s", flag)
+        return out, flag
 
     def call(
         self,
@@ -75,18 +153,25 @@ class AliyunLLM(BaseLLM):
         **kwargs: Any,
     ) -> str | Any:
         """调用阿里云 Chat Completions API，支持 Function Calling 与多模态消息。"""
+        logger.debug("llm_call", messages=messages, tools=tools, callbacks=callbacks, available_functions=available_functions, max_iterations=max_iterations, _retry_on_empty=_retry_on_empty, **kwargs)
         if max_iterations <= 0:
             raise RuntimeError("Function calling 达到最大迭代次数，可能存在无限循环")
 
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
 
+        # 将 AddImageToolLocal 的字符串结果还原为多模态消息，并根据是否包含图片决定模型
+        messages, used_multimodal = self._normalize_multimodal_tool_result(messages)
         self._validate_messages(messages)
 
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
         }
+        # 若本轮对话中存在多模态消息，则自动切换为多模态模型
+        if used_multimodal:
+            payload["model"] = self.image_model
+
         if self.temperature is not None:
             payload["temperature"] = self.temperature
         if self.stop and self.supports_stop_words():
@@ -104,10 +189,10 @@ class AliyunLLM(BaseLLM):
                     except Exception:
                         pass
 
-        logger.info(
+        logger.debug(
             "llm_request",
             endpoint=self.endpoint,
-            model=self.model,
+            model=payload.get("model"),
             region=self.region,
             num_messages=len(messages),
             raw_messages=messages,

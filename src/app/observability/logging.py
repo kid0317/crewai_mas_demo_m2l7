@@ -1,6 +1,6 @@
-"""结构化日志（structlog），支持 request_id、trace_id/span_id 注入与脱敏；按小时轮转输出到文件，error 单独文件。"""
+"""结构化日志（structlog），支持 request_id、trace_id/span_id 注入与脱敏；
+按小时轮转输出到文件，error 单独文件，使用普通文本格式而非 JSON。"""
 
-import json
 import logging
 import logging.handlers
 import os
@@ -59,14 +59,16 @@ def _shared_processors() -> list:
 
 
 def configure_logging(log_level: str = "INFO", log_dir: str = "./logs") -> None:
-    """配置 structlog：按小时轮转写入 log_dir，app.log 为全部级别，error.log 仅 ERROR；JSON 输出便于收集。"""
+    """配置 structlog：按小时轮转写入 log_dir，app.log 为全部级别，error.log 仅 ERROR；
+    日志以普通文本 key=value 形式输出，便于直接阅读。"""
     os.makedirs(log_dir, exist_ok=True)
     level = getattr(logging, log_level.upper(), logging.INFO)
 
+    # 使用文本格式输出日志，而不是 JSON。
+    # 这里采用 structlog 的 KeyValueRenderer，将字段渲染为单行 key=value 形式，
+    # 既保留结构化信息，又便于人类直接阅读与 grep。
     formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.processors.JSONRenderer(
-            serializer=lambda obj, **kw: json.dumps(obj, ensure_ascii=False, **kw)
-        ),
+        processor=structlog.processors.KeyValueRenderer(key_order=["timestamp", "level", "event", "request_id", "trace_id", "span_id"]),
         foreign_pre_chain=_shared_processors(),
     )
 

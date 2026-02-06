@@ -10,6 +10,7 @@ task_visual_analysis:
        {images_info}
     请使用 AddImageTool 加载上述图片路径，对图片进行整体与细节的多维度观察，
     并按照 XhsImageVisualAnalysis 的字段要求，输出结构化的视觉分析结果。
+    注意，如果加载图片失败，或者无法获取图片内容，则输出错误信息，不要编造结果
     
     **强调输出格式：**
     - 当输出Final Answer时，Final Answer:后面必须是纯JSON，不要使用 ```json 或 ``` 或 ` 代码块标记，不要有任何包装
@@ -26,6 +27,7 @@ task_visual_analysis_summary:
     你将获得所有图片的视觉分析结果，你需要总结所有图片的视觉分析结果，并生成一句话的整体的视觉分析报告总结，不要超过50个字。
   expected_output: |
     不输出多余内容，只输出一个一句话的整体的视觉分析报告总结。
+    注意，如果加载图片失败，或者无法获取图片内容，则输出错误信息，不要编造结果
 
 task_image_edit_plan:
   agent: xhs_image_editor
@@ -41,6 +43,7 @@ task_image_edit_plan:
     请使用 AddImageTool 加载上述图片路径，对图片进行整体与细节的多维度观察，并根据视觉分析结果，给出针对该图片的具体编辑 / P 图方案。
     请严格按照 XhsImageEditPlan 的字段要求。
     如果某些方向不需要编辑，则对应字段直接输出“不需要编辑”。
+    注意，如果加载图片失败，或者无法获取图片内容，则输出错误信息，不要编造结果
 
     **⚠️ 输出格式要求（最重要，必须严格遵守）：**
     - 当输出Final Answer时，Final Answer:后面必须是纯JSON，不要使用 ```json 或 ``` 或 ` 代码块标记，不要有任何包装
@@ -56,6 +59,7 @@ task_image_edit_plan_summary:
     你将获得所有图片的编辑方案，你需要总结所有图片的编辑方案，并生成一句话的整体的编辑方案总结，不要超过50个字。
   expected_output: |
     不输出多余内容，只输出一个一句话的整体的编辑方案总结。
+    注意，如果加载图片失败，或者无法获取图片内容，则输出错误信息，不要编造结果
 
 task_content_strategy:
   agent: xhs_growth_strategist
