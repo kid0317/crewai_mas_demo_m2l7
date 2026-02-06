@@ -78,6 +78,7 @@ task_content_strategy:
     - 如果用户意图是"地中海饮食减脂"，则策略应围绕地中海饮食相关内容，而不是其他主题（如咖啡机）。
     - 所有策略建议必须与用户意图和图片内容高度相关。
     - 请完整阅读visual_report和edit_report中的内容，确保策略与图片实际内容一致。
+    - 使用 IntermediateTool 工具保存中间思考过程
     
     **强调输出格式：**
     - 当输出Final Answer时，Final Answer:后面必须是纯JSON，不要使用 ```json 或 ``` 或 ` 代码块标记，不要有任何包装
@@ -99,6 +100,7 @@ task_copywriting:
        {visual_report}
 
     输出带 Emoji 的标题、正文，以及推荐的图片展示顺序。
+    使用 IntermediateTool 工具保存中间思考过程
     
     **强调输出格式：**
     - 当输出Final Answer时，Final Answer:后面必须是纯JSON，不要使用 ```json 或 ``` 或 ` 代码块标记，不要有任何包装
@@ -115,6 +117,7 @@ task_seo_optimization:
   description: |
     你将基于内容策略简报与原始文案，对标题、正文、图片顺序与标签进行搜索优化，
     在不损害阅读体验和情绪价值的前提下，自然融入长尾关键词。
+    使用 IntermediateTool 工具保存中间思考过程
     
     **强调输出格式：**
     - 当输出Final Answer时，Final Answer:后面必须是纯JSON，不要使用 ```json 或 ``` 或 ` 代码块标记，不要有任何包装
