@@ -22,20 +22,20 @@ from crewai import Crew, Process, Task
 # 官方 Process 仅支持 sequential / hierarchical，见 https://docs.crewai.com/en/concepts/processes
 # 多图任务在同一 Crew 内用 sequential 按顺序执行（无 concurrent 选项）
 from app.crews.xhs_note.agents import (
-    xhs_content_writer,
-    xhs_growth_strategist,
-    xhs_image_editor,
-    xhs_seo_expert,
-    xhs_visual_analyst,
+    get_xhs_content_writer,
+    get_xhs_growth_strategist,
+    get_xhs_image_editor,
+    get_xhs_seo_expert,
+    get_xhs_visual_analyst,
 )
 from app.crews.xhs_note.tasks import (
     build_visual_analysis_task,
     build_visual_analysis_summary_task,
     build_image_edit_task,
     build_image_edit_plan_summary_task,
-    task_content_strategy,
-    task_copywriting,
-    task_seo_optimization,
+    get_task_content_strategy,
+    get_task_copywriting,
+    get_task_seo_optimization,
 )
 from app.core.config import get_settings
 from app.observability.logging import get_crew_log_file_path, get_logger
@@ -116,7 +116,7 @@ async def _run_visual_analysis_phase(
     # 单个 Crew 内部仍然是 sequential，但外层通过 async_execution=True + akickoff
     # 来实现整体上的并发 IO 调度
     crew = Crew(
-        agents=[xhs_visual_analyst],
+        agents=[get_xhs_visual_analyst()],
         tasks=tasks,
         process=Process.sequential,
         verbose=True,
@@ -189,7 +189,7 @@ async def _run_image_edit_phase(
     tasks.append(summary_task)
 
     crew = Crew(
-        agents=[xhs_image_editor],
+        agents=[get_xhs_image_editor()],
         tasks=tasks,
         process=Process.sequential,
         verbose=True,
@@ -247,9 +247,17 @@ async def _run_content_phase(
 ) -> Tuple[XhsContentStrategyBrief, XhsCopywritingOutput, XhsSEOOptimizedNote]:
     """顺序执行内容策划、文案撰写、搜索优化三个任务，并返回三类结构化中间结果。"""
 
+    content_strategy_task = get_task_content_strategy()
+    copywriting_task = get_task_copywriting(content_strategy_task)
+    seo_task = get_task_seo_optimization(content_strategy_task, copywriting_task)
+
     crew = Crew(
-        agents=[xhs_growth_strategist, xhs_content_writer, xhs_seo_expert],
-        tasks=[task_content_strategy, task_copywriting, task_seo_optimization],
+        agents=[
+            get_xhs_growth_strategist(),
+            get_xhs_content_writer(),
+            get_xhs_seo_expert(),
+        ],
+        tasks=[content_strategy_task, copywriting_task, seo_task],
         process=Process.sequential,
         verbose=True,
         output_log_file=get_crew_log_file_path(get_settings().log_dir),

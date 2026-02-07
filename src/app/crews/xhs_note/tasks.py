@@ -13,14 +13,14 @@ from pathlib import Path
 from typing import List, Tuple
 
 import yaml
-from crewai import Task
+from crewai import Task, Agent
 
 from app.crews.xhs_note.agents import (
-    xhs_content_writer,
-    xhs_growth_strategist,
-    xhs_image_editor,
-    xhs_seo_expert,
-    xhs_visual_analyst,
+    get_xhs_content_writer,
+    get_xhs_growth_strategist,
+    get_xhs_image_editor,
+    get_xhs_seo_expert,
+    get_xhs_visual_analyst,
 )
 from app.schemas.xhs_note import (
     XhsContentStrategyBrief,
@@ -55,6 +55,9 @@ def _load_tasks_config() -> dict:
 
 _TASKS_CFG = _load_tasks_config()
 
+def _clone_agent(agent: Agent) -> Agent:
+    """因为crewai并发有bug，因此需要clone agent"""
+
 
 def _get_task_config(task_name: str) -> dict:
     """获取指定Task的配置。"""
@@ -88,9 +91,9 @@ def build_visual_analysis_task(image: XhsImageInput, idea_text: str) -> Task:
     return Task(
         description=description,
         expected_output=expected_output,
-        agent=xhs_visual_analyst,
+        agent=get_xhs_visual_analyst(),
         output_pydantic=XhsImageVisualAnalysis,
-        async_execution=False,  # 异步执行，避免阻塞主线程
+        async_execution=True,  # 异步执行，避免阻塞主线程
     )
 
 def build_visual_analysis_summary_task(context: List[Task]) -> Task:
@@ -99,8 +102,8 @@ def build_visual_analysis_summary_task(context: List[Task]) -> Task:
     return Task(
         description=cfg.get("description", ""),
         expected_output=cfg.get("expected_output", ""),
-        agent=xhs_visual_analyst,
-        context = context,
+        agent=get_xhs_visual_analyst(),
+        context=context,
         async_execution=False,
     )
 
@@ -136,9 +139,9 @@ def build_image_edit_task(
     return Task(
         description=description,
         expected_output=expected_output,
-        agent=xhs_image_editor,
+        agent=get_xhs_image_editor(),
         output_pydantic=XhsImageEditPlan,
-        async_execution=False,  # 异步执行，避免阻塞主线程
+        async_execution=True,  # 异步执行，避免阻塞主线程
     )
 
 def build_image_edit_plan_summary_task(context: List[Task]) -> Task:
@@ -147,39 +150,48 @@ def build_image_edit_plan_summary_task(context: List[Task]) -> Task:
     return Task(
         description=cfg.get("description", ""),
         expected_output=cfg.get("expected_output", ""),
-        agent=xhs_image_editor,
-        context = context,
+        agent=get_xhs_image_editor(),
+        context=context,
         async_execution=False,
     )
 
-# 内容策略任务：从 YAML 配置中提取 description 和 expected_output，显式传递给 Task
-_cfg_content_strategy = _get_task_config("task_content_strategy")
-task_content_strategy = Task(
-    description=_cfg_content_strategy.get("description", ""),
-    expected_output=_cfg_content_strategy.get("expected_output", ""),
-    agent=xhs_growth_strategist,  # YAML 中配置的 agent: xhs_growth_strategist
-    output_pydantic=XhsContentStrategyBrief,
-    async_execution=False,
-)
 
-# 文案撰写任务：依赖内容策略任务的结果
-_cfg_copywriting = _get_task_config("task_copywriting")
-task_copywriting = Task(
-    description=_cfg_copywriting.get("description", ""),
-    expected_output=_cfg_copywriting.get("expected_output", ""),
-    agent=xhs_content_writer,  # YAML 中配置的 agent: xhs_content_writer
-    context=[task_content_strategy],  # 依赖上游内容策略任务
-    output_pydantic=XhsCopywritingOutput,
-    async_execution=False,
-)
+def get_task_content_strategy() -> Task:
+    """从 YAML 配置构建内容策略 Task，每次调用返回新实例。"""
+    cfg = _get_task_config("task_content_strategy")
+    return Task(
+        description=cfg.get("description", ""),
+        expected_output=cfg.get("expected_output", ""),
+        agent=get_xhs_growth_strategist(),  # YAML 中配置的 agent: xhs_growth_strategist
+        output_pydantic=XhsContentStrategyBrief,
+        async_execution=False,
+    )
 
-# SEO 优化任务：依赖内容策略和文案撰写任务的结果
-_cfg_seo = _get_task_config("task_seo_optimization")
-task_seo_optimization = Task(
-    description=_cfg_seo.get("description", ""),
-    expected_output=_cfg_seo.get("expected_output", ""),
-    agent=xhs_seo_expert,  # YAML 中配置的 agent: xhs_seo_expert
-    context=[task_content_strategy, task_copywriting],  # 依赖上游两个任务
-    output_pydantic=XhsSEOOptimizedNote,
-    async_execution=False,
-)
+
+def get_task_copywriting(content_strategy_task: Task) -> Task:
+    """基于内容策略 Task 构建文案撰写 Task，每次调用返回新实例。"""
+    cfg = _get_task_config("task_copywriting")
+    return Task(
+        description=cfg.get("description", ""),
+        expected_output=cfg.get("expected_output", ""),
+        agent=get_xhs_content_writer(),  # YAML 中配置的 agent: xhs_content_writer
+        context=[content_strategy_task],  # 依赖上游内容策略任务
+        output_pydantic=XhsCopywritingOutput,
+        async_execution=False,
+    )
+
+
+def get_task_seo_optimization(
+    content_strategy_task: Task,
+    copywriting_task: Task,
+) -> Task:
+    """基于内容策略和文案撰写 Task 构建 SEO 优化 Task，每次调用返回新实例。"""
+    cfg = _get_task_config("task_seo_optimization")
+    return Task(
+        description=cfg.get("description", ""),
+        expected_output=cfg.get("expected_output", ""),
+        agent=get_xhs_seo_expert(),  # YAML 中配置的 agent: xhs_seo_expert
+        context=[content_strategy_task, copywriting_task],  # 依赖上游两个任务
+        output_pydantic=XhsSEOOptimizedNote,
+        async_execution=False,
+    )

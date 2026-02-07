@@ -160,7 +160,8 @@ pytest tests/ -v
 ## 设计文档
 
 - 框架总体设计：见 `doc/Python AI 应用框架设计文档.md`
-- 小红书爆款笔记多 Agent 项目：见 `doc/design/小红书爆款笔记项目设计文档.md`
+- 小红书爆款笔记多 Agent 项目：见 `doc/design/小红书爆款笔记项目设计文档.md`  
+  Agent 与内容阶段 Task 均通过 **get 工厂方法**（如 `get_xhs_visual_analyst()`、`get_task_content_strategy()`）按需创建新实例，避免单例在并发下的状态共享问题。
 
 ## License
 

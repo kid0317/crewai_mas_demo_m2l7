@@ -49,44 +49,55 @@ def _agent_cfg(name: str) -> dict:
 
 
 # 多模态视觉分析 Agent：除 llm/tools/multimodal 外全部走 config
-_cfg_visual = _agent_cfg("xhs_visual_analyst")
-xhs_visual_analyst = Agent(
-    config=_cfg_visual,
-    multimodal=True,
-    llm=get_llm(image_model="qwen3-vl-plus",model="qwen3-max-2026-01-23"),
-    tools=[AddImageToolLocal()],
-)
+def get_xhs_visual_analyst() -> Agent:
+    """每次调用创建一个新的视觉分析 Agent 实例。"""
+    cfg_visual = _agent_cfg("xhs_visual_analyst")
+    return Agent(
+        config=cfg_visual,
+        multimodal=True,
+        llm=get_llm(image_model="qwen3-vl-plus", model="qwen3-max-2026-01-23"),
+        tools=[AddImageToolLocal()],
+    )
 
 
 # 多模态图片编辑 / P 图方案 Agent
-_cfg_editor = _agent_cfg("xhs_image_editor")
-xhs_image_editor = Agent(
-    config=_cfg_editor,
-    multimodal=True,
-    llm=get_llm(image_model="qwen3-vl-plus",model="qwen3-max-2026-01-23"),
-    tools=[AddImageToolLocal()],
-)
-
-_cfg_growth = _agent_cfg("xhs_growth_strategist")
-xhs_growth_strategist = Agent(
-    config=_cfg_growth,
-    tools=_INTERMEDIATE_TOOLS,
-    llm=get_llm(model="qwen3-max-2026-01-23"),
-)
+def get_xhs_image_editor() -> Agent:
+    """每次调用创建一个新的图片编辑 Agent 实例。"""
+    cfg_editor = _agent_cfg("xhs_image_editor")
+    return Agent(
+        config=cfg_editor,
+        multimodal=True,
+        llm=get_llm(image_model="qwen3-vl-plus", model="qwen3-max-2026-01-23"),
+        tools=[AddImageToolLocal()],
+    )
 
 
-_cfg_writer = _agent_cfg("xhs_content_writer")
-xhs_content_writer = Agent(
-    config=_cfg_writer,
-    tools=_INTERMEDIATE_TOOLS,
-    llm=get_llm(model="qwen3-max-2026-01-23"),
-)
+def get_xhs_growth_strategist() -> Agent:
+    """每次调用创建一个新的增长策略 Agent 实例。"""
+    cfg_growth = _agent_cfg("xhs_growth_strategist")
+    return Agent(
+        config=cfg_growth,
+        tools=_INTERMEDIATE_TOOLS,
+        llm=get_llm(model="qwen3-max-2026-01-23"),
+    )
 
 
-_cfg_seo = _agent_cfg("xhs_seo_expert")
-xhs_seo_expert = Agent(
-    config=_cfg_seo,
-    tools=_INTERMEDIATE_TOOLS,
-    llm=get_llm(model="qwen3-max-2026-01-23"),
-)
+def get_xhs_content_writer() -> Agent:
+    """每次调用创建一个新的内容撰写 Agent 实例。"""
+    cfg_writer = _agent_cfg("xhs_content_writer")
+    return Agent(
+        config=cfg_writer,
+        tools=_INTERMEDIATE_TOOLS,
+        llm=get_llm(model="qwen3-max-2026-01-23"),
+    )
+
+
+def get_xhs_seo_expert() -> Agent:
+    """每次调用创建一个新的 SEO 优化 Agent 实例。"""
+    cfg_seo = _agent_cfg("xhs_seo_expert")
+    return Agent(
+        config=cfg_seo,
+        tools=_INTERMEDIATE_TOOLS,
+        llm=get_llm(model="qwen3-max-2026-01-23"),
+    )
 
