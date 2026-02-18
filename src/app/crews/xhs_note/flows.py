@@ -17,7 +17,7 @@ import json
 import time
 from typing import Dict, List, Tuple
 
-from crewai import Crew, Process, Task
+from crewai import Agent, Crew, Process, Task
 
 # 官方 Process 仅支持 sequential / hierarchical，见 https://docs.crewai.com/en/concepts/processes
 # 多图任务在同一 Crew 内用 sequential 按顺序执行（无 concurrent 选项）
@@ -90,6 +90,12 @@ def _handle_crew_error(exc: Exception, agent_roles: list[str]) -> None:
         ai_agent_error_total.labels(agent_role=role, error_type=error_type).inc()
     logger.exception("crew_execution_failed", agent_roles=agent_roles, error=str(exc))
 
+def _get_tasks_agents(tasks: List[Task]) -> List[Agent]:
+    """获取任务的Agent列表。"""
+    agents = []
+    for task in tasks:
+        agents.append(task.agent)
+    return agents
 
 # ============================================================================
 # Step 1：为每张图片创建「视觉分析」任务（并发执行）
@@ -111,12 +117,13 @@ async def _run_visual_analysis_phase(
         return {}, ""
     summary_task = build_visual_analysis_summary_task(tasks)
     tasks.append(summary_task)
+    agents = _get_tasks_agents(tasks)
 
 
     # 单个 Crew 内部仍然是 sequential，但外层通过 async_execution=True + akickoff
     # 来实现整体上的并发 IO 调度
     crew = Crew(
-        agents=[get_xhs_visual_analyst()],
+        agents=agents,
         tasks=tasks,
         process=Process.sequential,
         verbose=True,
@@ -189,7 +196,7 @@ async def _run_image_edit_phase(
     tasks.append(summary_task)
 
     crew = Crew(
-        agents=[get_xhs_image_editor()],
+        agents=_get_tasks_agents(tasks),
         tasks=tasks,
         process=Process.sequential,
         verbose=True,
@@ -252,11 +259,7 @@ async def _run_content_phase(
     seo_task = get_task_seo_optimization(content_strategy_task, copywriting_task)
 
     crew = Crew(
-        agents=[
-            get_xhs_growth_strategist(),
-            get_xhs_content_writer(),
-            get_xhs_seo_expert(),
-        ],
+        agents=_get_tasks_agents([content_strategy_task, copywriting_task, seo_task]),
         tasks=[content_strategy_task, copywriting_task, seo_task],
         process=Process.sequential,
         verbose=True,

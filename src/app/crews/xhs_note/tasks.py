@@ -55,10 +55,6 @@ def _load_tasks_config() -> dict:
 
 _TASKS_CFG = _load_tasks_config()
 
-def _clone_agent(agent: Agent) -> Agent:
-    """因为crewai并发有bug，因此需要clone agent"""
-
-
 def _get_task_config(task_name: str) -> dict:
     """获取指定Task的配置。"""
     return _TASKS_CFG.get(task_name, {}) if isinstance(_TASKS_CFG, dict) else {}
