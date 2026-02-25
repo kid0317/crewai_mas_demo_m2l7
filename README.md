@@ -1,8 +1,9 @@
-# Enterprise AI App
+# 小红书爆款笔记生成 Agent 实战项目
 
-企业级生成式 AI 应用 Web 服务框架：基于 FastAPI、CrewAI、OceanBase 与云原生可观测性。
-
-- **仓库**: [https://github.com/kid0317/fastapi_base](https://github.com/kid0317/fastapi_base)
+> 课程《企业级多智能体设计实战》第 11 课《项目实战1：小红书爆款笔记生成项目》配套代码
+>
+> 从零搭建一个多 Agent 协作的小红书爆款笔记生成系统：用户上传图片 + 一句话意图 → 生成完整笔记报告（SEO 标题、正文、标签、图片顺序、每张图片的编辑方案）
+> 如果对课程或者代码有疑问，欢迎通过我的个人微信加入微信群一起学习讨论: bmagician
 
 ## 技术栈
 
@@ -11,6 +12,47 @@
 - **持久化**: SQLAlchemy 2.0 异步（OceanBase/MySQL 兼容）、Alembic 迁移、本地文件客户端
 - **安全**: X-API-Key 鉴权、SlowAPI 限流
 - **可观测**: structlog 结构化日志、Prometheus 指标、Request ID 贯穿
+
+## 项目架构
+
+### 核心设计
+
+- **5 个 Agent 分工协作**：视觉分析师、图片编辑师、增长策略专家、内容撰写师、SEO 优化专家
+- **7 个 Task**：视觉分析（并发）、视觉分析总结、图片编辑方案（并发）、编辑方案总结、内容策略、文案撰写、SEO 优化
+- **三阶段流程编排**：阶段一视觉分析（多图并发）→ 阶段二图片编辑（多图并发）→ 阶段三内容创作（策略→文案→SEO 串行）
+
+### Agent 角色
+
+| Agent | 角色定位 | 模型 | 多模态 |
+|-------|----------|------|--------|
+| 视觉分析师 | 平台审美 + 情绪价值 + 商业转化 三重视角分析图片 | qwen3-vl-plus | 是 |
+| 图片编辑师 | 轻量可复现的编辑方案，统一笔记视觉风格 | qwen3-vl-plus | 是 |
+| 增长策略专家 | 制定内容策略简报，指导爆款创作 | qwen3-max | 否 |
+| 内容撰写师 | 将策略转译为高情绪价值的笔记文案 | qwen3-max | 否 |
+| SEO 优化专家 | 自然融入长尾关键词，优化搜索与推荐 | qwen3-max | 否 |
+
+### 请求链路
+
+```
+POST /api/v1/xhs/notes/report
+  → API 层解析 multipart 表单
+  → Service 层：图片保存压缩、构建 XhsNoteIdeaRequest
+  → Flow 层：三阶段 Crew 执行（visual → edit → content）
+  → 汇总报告 → 返回 ApiResponse
+```
+
+### 关键文件
+
+| 文件 | 职责 |
+|------|------|
+| `schemas/xhs_note.py` | 数据模型（输入/输出/领域模型） |
+| `crews/config/agents.yaml` | Agent 角色配置（role/goal/backstory） |
+| `crews/config/tasks.yaml` | Task 描述模板 |
+| `crews/xhs_note/agents.py` | Agent 工厂函数 |
+| `crews/xhs_note/tasks.py` | Task 工厂函数 |
+| `crews/xhs_note/flows.py` | 三阶段流程编排 |
+| `services/xhs_note_service.py` | 业务逻辑（图片压缩、调用 flow、清理临时文件） |
+| `api/v1/xhs_note.py` | HTTP 端点 |
 
 ## 环境要求
 
@@ -50,32 +92,50 @@ PYTHONPATH=src python -m app
   ```
   断点调试时可在 `src/app/__main__.py` 里把 `reload=True` 改为 `False`，避免 reload 子进程导致断点不命中。
 
+
 - **Cursor / VS Code**：已配置 `.vscode/launch.json`，在「运行和调试」里选择：
   - **FastAPI (调试，无 reload)**：适合打断点调试，单进程。
   - **FastAPI (开发，reload)**：改代码自动重载。
   - **Python: 以模块运行 app**：以 `python -m app` 方式启动，便于在 `__main__.py` 里设断点。
+
+
+### 小红书笔记接口测试
+
+在项目根目录执行（需先启动服务）：
+
+```bash
+sh tests/integration/xhs_note_curl.sh
+```
 
 ### 常用端点
 
 - 健康检查: `GET /health/live`、`GET /health/ready`
 - API 文档: `GET /docs`（开发环境）
 - 指标: `GET /metrics`
-- **小红书爆款笔记报告**: `POST /api/v1/xhs/notes/report`，请求为 **multipart/form-data**：必填 `idea_text`（文本）、`images`（多文件）；需请求头 `X-API-Key`（开发环境可不配置 APP_API_KEYS）。返回结构化报告（当前 `data.report` 为完整报告字符串）。需配置阿里云通义 LLM（多模态与文案模型）。
+- **小红书爆款笔记报告**: `POST /api/v1/xhs/notes/report`  
+  - 请求：**multipart/form-data**，必填 `idea_text`（创作意图）、`images`（多文件）  
+  - 返回：完整报告，含 SEO 优化标题、正文、标签、图片发布顺序、每张图片的视觉分析与编辑方案  
+  - 需配置阿里云通义 LLM（多模态 qwen3-vl-plus + 文案 qwen3-max）  
+  - 开发环境可不配置 `X-API-Key`（未配置 APP_API_KEYS 时）
 
 ## 项目结构
 
 ```
 src/app/
-├── main.py           # 入口、中间件、异常处理
-├── api/v1/           # 版本化 API、dependencies
-├── core/             # config、security
-├── crews/            # agents、tasks、flows、tools、llm（CrewAI）
-├── db/               # clients、models、migrations、repositories
-├── schemas/          # Pydantic Request/Response/Domain
-├── services/         # 领域服务
-└── observability/    # 日志、指标
-tests/                # unit、integration
-deploy/               # docker、k8s、grafana
+├── main.py              # 入口、中间件、异常处理
+├── api/v1/              # 版本化 API（含 xhs_note.py）
+├── core/                # config、security、image_utils
+├── crews/
+│   ├── config/          # agents.yaml、tasks.yaml
+│   ├── xhs_note/        # agents.py、tasks.py、flows.py（小红书笔记编排）
+│   ├── tools/           # AddImageToolLocal、IntermediateTool
+│   └── llm/             # 阿里云通义 LLM 封装
+├── schemas/             # xhs_note.py 等 Pydantic 模型
+├── services/            # xhs_note_service.py
+└── observability/       # 日志、指标
+tests/                   # unit、integration（含 test_xhs_note.py）
+doc/                     # 课程大纲、逐字稿、设计文档
+deploy/                  # docker、k8s、grafana
 ```
 
 ## 配置说明
@@ -157,11 +217,16 @@ pytest tests/ -v
 - **K8s**: `deploy/k8s/deployment.yaml`，liveness/readiness 使用 `/health/live`、`/health/ready`
 - 敏感配置使用 Secret，非敏感使用 ConfigMap，参见 `deploy/k8s/configmap.example.yaml`
 
-## 设计文档
+## 文档与课程资料
 
-- 框架总体设计：见 `doc/Python AI 应用框架设计文档.md`
-- 小红书爆款笔记多 Agent 项目：见 `doc/design/小红书爆款笔记项目设计文档.md`  
-  Agent 与内容阶段 Task 均通过 **get 工厂方法**（如 `get_xhs_visual_analyst()`、`get_task_content_strategy()`）按需创建新实例，避免单例在并发下的状态共享问题。
+| 文档 | 说明 |
+|------|------|
+| `doc/课程大纲.md` | 课程大纲（约 40 分钟，六章结构） |
+| `doc/课程逐字稿.md` | 课程完整逐字稿 |
+| `doc/design/小红书爆款笔记项目设计文档.md` | 项目设计文档（架构、数据模型、Agent/Task/Flow） |
+| `doc/Python AI 应用框架设计文档.md` | 框架总体设计 |
+
+**实现要点**：Agent 与 Task 均通过 **get 工厂方法**（如 `get_xhs_visual_analyst()`、`get_task_content_strategy()`）按需创建新实例，避免单例在并发下的状态共享问题。
 
 ## License
 
